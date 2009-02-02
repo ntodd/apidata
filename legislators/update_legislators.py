@@ -4,8 +4,8 @@ import csv
 import urllib
 import re
 from collections import defaultdict
-#from votesmart import votesmart, VotesmartApiError
-# set votesmart api key here
+from votesmart import votesmart, VotesmartApiError
+votesmart.apikey = '496ec1875a7885ec65a4ead99579642c'
 
 STATES = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
           'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA',
@@ -27,11 +27,21 @@ def get_votesmart_legislators():
 
 class LegislatorTable(object):
 
-    def __init__(self):
-        self.csvfile = 'legislators.csv'
+    def __init__(self, filename):
+        self.csvfile = filename
         self.legislators = {}
-        for line in csv.DictReader(open(self.csvfile)):
+        reader = csv.DictReader(open(self.csvfile))
+        for line in reader:
             self.legislators[line['bioguide_id']] = line
+        self.fieldnames = reader.fieldnames
+
+    def save_to(self, filename):
+        writer = csv.DictWriter(open(filename, 'w'), self.fieldnames, 
+                                quoting=csv.QUOTE_ALL)
+        # write header
+        writer.writerow(dict(zip(self.fieldnames, self.fieldnames)))
+        for key in sorted(self.legislators.iterkeys()):
+            writer.writerow(self.legislators[key])
 
     def get_legislator(self, attname, value):
         for leg in self.legislators.itervalues():
@@ -120,3 +130,64 @@ class LegislatorTable(object):
                 if bioguide:
                     self.add_legislator(leg, bioguide_id=bioguide)
 
+    def add_legislator(self, official, bioguide_id):
+        person = {}
+        # get basic information
+        id = person['votesmart_id'] = official.candidateId
+        person['firstname'] = official.firstName
+        person['middlename'] = official.middleName
+        person['lastname'] = official.lastName
+        person['name_suffix'] = official.suffix
+        person['nickname'] = official.nickName
+        person['title'] = official.title[0:3]
+        state = person['state'] = official.officeStateId
+        district = person['district'] = official.officeDistrictName
+        person['party'] = official.officeParties[0]
+
+        # get information from address
+        try:
+            offices = votesmart.address.getOffice(id)
+            for office in offices:
+                if office.state == 'DC':
+                    person['congress_office'] = office.street
+                    person['phone'] = office.phone1
+                    person['fax'] = office.fax1
+        except VotesmartApiError:
+            pass
+
+        # get information from web address
+        webaddr_re = re.compile('.+(house|senate)\.gov.+')
+        try:
+            webaddrs = votesmart.address.getOfficeWebAddress(id)
+            for webaddr in webaddrs:
+                if webaddr.webAddressType == 'Website' and webaddr_re.match(webaddr.webAddress):
+                    person['website'] = webaddr.webAddress
+                elif webaddr.webAddressType == 'Webmail' and webaddr_re.match(webaddr.webAddress):
+                    person['webform'] = webaddr.webAddress
+                elif webaddr.webAddressType == 'Email' and webaddr_re.match(webaddr.webAddress):
+                    person['email'] = webaddr.webAddress
+        except VotesmartApiError:
+            pass
+
+        # get information from bio
+        bio = votesmart.candidatebio.getBio(id) 
+        if bio.gender:
+            person['gender'] = bio.gender[0]
+        person['fec_id'] = bio.fecId
+        
+        try:
+            curleg = Legislator.objects.get(state=state,district=district,
+                                               in_office=True)
+            print 'Setting in_office=False on:', curleg
+            curleg.in_office = False
+            curleg.save()
+        except ObjectDoesNotExist:
+            pass
+        
+        person['bioguide_id'] = bioguide_id
+        # person['crp_id'] =
+        # person['govtrack_id'] =
+        # person['twitter_id'] =
+        # person['congresspedia_url'] =
+        
+        Legislator.objects.create(**person)
