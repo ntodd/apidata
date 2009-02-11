@@ -4,8 +4,8 @@ import csv
 import urllib
 import re
 from collections import defaultdict
-from votesmart import votesmart, VotesmartApiError
-votesmart.apikey = '496ec1875a7885ec65a4ead99579642c'
+#from votesmart import votesmart, VotesmartApiError
+#votesmart.apikey = '496ec1875a7885ec65a4ead99579642c'
 
 STATES = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
           'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA',
@@ -191,3 +191,35 @@ class LegislatorTable(object):
         # person['congresspedia_url'] =
         
         Legislator.objects.create(**person)
+
+def compare_to(oldfile, newfile):
+    old = LegislatorTable(oldfile)
+    new = LegislatorTable(newfile)
+
+    new_attributes = set()
+    changes = defaultdict(set)
+
+    for bio_id, new_leg in new.legislators.iteritems():
+        if bio_id not in old.legislators:
+            print 'New Legislator:', bio_id
+        else:
+            this_leg = old.legislators[bio_id]
+            for k,v in new_leg.iteritems():
+                if k not in this_leg:
+                    new_attributes.add(k)
+                elif this_leg[k] != v:
+                    changes[bio_id].add(k)
+
+    # print results
+    print 'New Attributes:', ' '.join(new_attributes)
+    for leg, changed_keys in changes.iteritems():
+        old_leg = old.legislators[leg]
+        new_leg = new.legislators[leg]
+        print leg, old_leg['firstname'], old_leg['lastname']
+        for key in changed_keys:
+            print '\t%s: %s -> %s' % (key, old_leg[key], new_leg[key])
+            if key in ('youtube_url', 'twitter_id'):
+                old.legislators[leg][key] = new_leg[key]
+
+    old.save_to(oldfile)
+
