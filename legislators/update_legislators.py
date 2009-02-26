@@ -192,9 +192,11 @@ class LegislatorTable(object):
         
         Legislator.objects.create(**person)
 
-def compare_to(oldfile, newfile):
+def compare_to(oldfile, newfile, approved_edits=None):
     old = LegislatorTable(oldfile)
     new = LegislatorTable(newfile)
+    if approved_edits is None:
+        approved_edits = []
 
     new_attributes = set()
     changes = defaultdict(set)
@@ -218,7 +220,7 @@ def compare_to(oldfile, newfile):
         print leg, old_leg['firstname'], old_leg['lastname']
         for key in changed_keys:
             print '\t%s: %s -> %s' % (key, old_leg[key], new_leg[key])
-            if key in ('youtube_url', 'twitter_id'):
+            if key in approved_edits:
                 old.legislators[leg][key] = new_leg[key]
 
     old.save_to(oldfile)
