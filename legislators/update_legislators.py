@@ -4,6 +4,8 @@ import csv
 import urllib
 import re
 from collections import defaultdict
+import string
+from xml.dom import minidom
 #from votesmart import votesmart, VotesmartApiError
 #votesmart.apikey = '496ec1875a7885ec65a4ead99579642c'
 
@@ -244,3 +246,48 @@ def sanity_check(csvfile):
     diffs = set(delstates).symmetric_difference(set(NONSTATES))
     if diffs:
         print 'missing delegates from: %s' % (','.join(diffs))
+
+def _get_xml_value(node, name):
+    fc = node.getElementsByTagName(name)[0].firstChild
+    return fc.wholeText if fc else ''
+
+def check_senate_xml():
+    table = LegislatorTable('legislators.csv')
+    senate_xml_url = 'http://senate.gov/general/contact_information/senators_cfm.xml'
+    phone_re = re.compile('\((\d{3})\)\s(\d{3}\-\d{4})')
+    senate_xml = urllib.urlopen(senate_xml_url).read()
+    dom = minidom.parseString(senate_xml)
+    members = dom.getElementsByTagName('member')
+    a = p = w = e = 0
+    for member in members:
+        bioguide = _get_xml_value(member, 'bioguide_id')
+        address = _get_xml_value(member, 'address').split('\n')[0]
+        if address:
+            address = string.capwords(address)
+        phone = _get_xml_value(member, 'phone')
+        if phone:
+            phone = '-'.join(phone_re.match(phone).groups())
+        webform = _get_xml_value(member, 'email')
+        email = ''
+        if webform and webform.startswith('mailto'):
+            email = webform[7:]
+            webform = ''
+        website = _get_xml_value(member, 'website')
+
+        leg = table.legislators[bioguide]
+        if leg['congress_office'] != address:
+            print 'Sen %s: changed addr from %s to %s' % (leg['lastname'], leg['congress_office'], address)
+            table.legislators[bioguide]['congress_office'] = address
+        if leg['phone'] != phone:
+            print 'Sen %s: changed phone from %s to %s' % (leg['lastname'], leg['phone'], phone)
+            table.legislators[bioguide]['phone'] = phone
+        if leg['webform'] != webform:
+            print 'Sen %s: changed webform from %s to %s' % (leg['lastname'], leg['webform'], webform)
+            table.legislators[bioguide]['webform'] = webform
+        if leg['email'] != email:
+            print 'Sen %s: changed email from %s to %s' % (leg['lastname'], leg['email'], email)
+            table.legislators[bioguide]['email'] = email
+        if leg['website'] != website:
+            print 'Sen %s: changed website from %s to %s' % (leg['lastname'], leg['website'], website)
+            table.legislators[bioguide]['website'] = website
+    table.save_to('legislators.csv')
