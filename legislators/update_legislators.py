@@ -214,6 +214,13 @@ def compare_to(oldfile, newfile, approved_edits=None):
 
     # print results
     print 'New Attributes:', ' '.join(new_attributes)
+
+    for attr in new_attributes:
+        if attr in approved_edits:
+            old.fieldnames.append(attr)
+            for leg, new_leg in new.legislators.items():
+                old.legislators[leg][attr] = new_leg[attr]
+
     for leg, changed_keys in changes.iteritems():
         old_leg = old.legislators[leg]
         new_leg = new.legislators[leg]
