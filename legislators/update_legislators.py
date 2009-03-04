@@ -149,6 +149,8 @@ def compare_to(oldfile, newfile, approved_edits=None):
         else:
             this_leg = old.legislators[bio_id]
             for k,v in new_leg.iteritems():
+                if v == None:
+                    v = ''
                 if k not in this_leg:
                     new_attributes.add(k)
                 elif this_leg[k] != v:
