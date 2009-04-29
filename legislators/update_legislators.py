@@ -6,8 +6,8 @@ import re
 from collections import defaultdict
 import string
 from xml.dom import minidom
-#from votesmart import votesmart, VotesmartApiError
-#votesmart.apikey = '496ec1875a7885ec65a4ead99579642c'
+from votesmart import votesmart, VotesmartApiError
+votesmart.apikey = '496ec1875a7885ec65a4ead99579642c'
 
 STATES = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
           'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA',
@@ -65,10 +65,10 @@ class LegislatorTable(object):
         for leg in get_votesmart_legislators():
             if not self.get_legislator(votesmart_id=leg.candidateId):
                 print '%s %s (%s)' % (leg.firstName, leg.lastName, leg.candidateId)
-            if add:
-                bioguide = raw_input('Bioguide ID: ')
-                if bioguide:
-                    self.add_legislator(leg, bioguide_id=bioguide)
+                if add:
+                    bioguide = raw_input('Bioguide ID: ')
+                    if bioguide:
+                        self.add_legislator(leg, bioguide_id=bioguide)
 
     def add_legislator(self, official, bioguide_id):
         person = {}
@@ -114,23 +114,20 @@ class LegislatorTable(object):
         if bio.gender:
             person['gender'] = bio.gender[0]
         person['fec_id'] = bio.fecId
-        
-        try:
-            curleg = Legislator.objects.get(state=state,district=district,
-                                               in_office=True)
-            print 'Setting in_office=False on:', curleg
-            curleg.in_office = False
-            curleg.save()
-        except ObjectDoesNotExist:
-            pass
-        
+
+        #curleg = self.get_legislator(state=state, district=district,
+        #                             in_office='1')
+        #if curleg:
+        #    print 'Setting in_office=False on:', curleg
+        #    curleg['in_office'] = False
+
         person['bioguide_id'] = bioguide_id
         # person['crp_id'] =
         # person['govtrack_id'] =
         # person['twitter_id'] =
         # person['congresspedia_url'] =
-        
-        Legislator.objects.create(**person)
+        self.legislators[bioguide_id] = person
+
 
 def compare_to(oldfile, newfile, approved_edits=None):
     """
